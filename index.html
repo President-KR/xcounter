@@ -21,17 +21,17 @@
   #graph { height:calc(100vh - 200px); min-height:720px; background:#fff; }
   footer { font-size:12px; color:var(--sub); margin:8px 4px; }
 
-  /* 휴대폰 화면: 카드를 작게, 한 줄에 3개씩 */
+  /* 휴대폰 화면: 카드를 작게, 한 줄에 4개씩 */
   @media (max-width: 700px) {
     body { padding:8px; }
     h1 { font-size:15px; margin:0 2px 6px; }
     h1 span { display:block; margin:2px 0 0; font-size:11px; }
-    #summary { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; }
-    .card { min-width:0; padding:4px 7px; border-radius:7px; }
-    .card .t { font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .card .v { font-size:14px; }
+    #summary { display:grid; grid-template-columns:repeat(4, 1fr); gap:4px; }
+    .card { min-width:0; padding:3px 5px; border-radius:6px; }
+    .card .t { font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .card .v { font-size:13px; white-space:nowrap; letter-spacing:-0.3px; }
     .controls { gap:4px 16px; margin:8px 2px 2px; font-size:12px; }
-    .controls label { margin-right:8px; }
+    .controls label { margin-right:8px; white-space:nowrap; }
     #graph { height:calc(100vh - 260px); min-height:560px; }
     footer { font-size:11px; }
   }
