@@ -58,7 +58,7 @@
   </div>
 </div>
 <div id="graph"></div>
-<footer>X 공개 프로필의 숫자를 약 5분 간격으로 기록한 것입니다.<br>마우스 휠 = 확대/축소, 드래그 = 좌우 이동, 더블클릭 = 전체 보기</footer>
+<footer>마우스 휠 = 확대/축소, 드래그 = 좌우 이동, 더블클릭 = 전체 보기</footer>
 
 <script>
 // ---------------------------------------------------------------- 설정
@@ -103,7 +103,7 @@ async function fetchText(url, fresh) {
 async function loadIndex() {
   index = JSON.parse(await fetchText("data/index.json", true));
   document.title = `@${index.username} 팔로워·팔로잉`;
-  document.getElementById("title").firstChild.textContent = `@${index.username} 팔로워·팔로잉`;
+  document.getElementById("title").firstChild.textContent = `X@${index.username} 팔로워·팔로잉 확인중...`;
   document.getElementById("sub").textContent = `업데이트 ${index.updated}`;
 }
 
