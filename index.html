@@ -20,6 +20,21 @@
   .controls label { margin-right:14px; cursor:pointer; }
   #graph { height:calc(100vh - 200px); min-height:720px; background:#fff; }
   footer { font-size:12px; color:var(--sub); margin:8px 4px; }
+
+  /* 휴대폰 화면: 카드를 작게, 한 줄에 3개씩 */
+  @media (max-width: 700px) {
+    body { padding:8px; }
+    h1 { font-size:15px; margin:0 2px 6px; }
+    h1 span { display:block; margin:2px 0 0; font-size:11px; }
+    #summary { display:grid; grid-template-columns:repeat(3, 1fr); gap:5px; }
+    .card { min-width:0; padding:4px 7px; border-radius:7px; }
+    .card .t { font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .card .v { font-size:14px; }
+    .controls { gap:4px 16px; margin:8px 2px 2px; font-size:12px; }
+    .controls label { margin-right:8px; }
+    #graph { height:calc(100vh - 260px); min-height:560px; }
+    footer { font-size:11px; }
+  }
 </style>
 </head>
 <body>
@@ -169,14 +184,17 @@ function hoverPoints(points, template, name, axis) {   // 막대 위치에 보�
 const DOMAINS = [[0.745, 1], [0.542, 0.695], [0.271, 0.492], [0, 0.221]];
 
 function buildFigure(rows) {
+  const small = window.innerWidth < 700;        // 휴대폰 화면
   const bucket = state.bucket, label = BUCKET_LABEL[bucket];
   const titles = ["팔로워", "팔로잉", `팔로잉 증감 (${label}별)`, `새 게시물 (${label}별)`];
   const layout = {
     template: "plotly_white", hovermode: "x unified", dragmode: "pan", showlegend: false, uirevision: "keep",
-    margin: { l: 70, r: 30, t: 40, b: 20 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
-    font: { family: "'Malgun Gothic','Apple SD Gothic Neo',sans-serif" },
+    margin: small ? { l: 52, r: 8, t: 26, b: 16 } : { l: 70, r: 30, t: 40, b: 20 },
+    paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+    font: { family: "'Malgun Gothic','Apple SD Gothic Neo',sans-serif", size: small ? 10 : 12 },
+    hoverlabel: { font: { size: small ? 11 : 13 } },
     annotations: titles.map((text, i) => ({ text, xref: "paper", yref: "paper", x: 0.5, y: DOMAINS[i][1],
-      xanchor: "center", yanchor: "bottom", showarrow: false, font: { size: 16 } })),
+      xanchor: "center", yanchor: "bottom", showarrow: false, font: { size: small ? 12 : 16 } })),
   };
   for (let i = 1; i <= 4; i++) {
     const ax = i === 1 ? "" : i;
@@ -272,7 +290,7 @@ async function render() {
   renderSummary(rows);
   const { data, layout } = buildFigure(rows);
   rendering = true;
-  try { await Plotly.react("graph", data, layout, { scrollZoom: true, displaylogo: false, responsive: true }); }
+  try { await Plotly.react("graph", data, layout, { scrollZoom: true, displaylogo: false, responsive: true, displayModeBar: window.innerWidth >= 700 }); }
   finally { rendering = false; }
 }
 
@@ -316,6 +334,8 @@ document.querySelectorAll("input[name=period], input[name=bucket]").forEach(el =
     render();
   });
   setInterval(refresh, REFRESH_MS);
+  let resizeTimer;                              // 화면 크기가 바뀌면 글자·여백 다시 맞춤
+  window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 300); });
 })();
 
 // ---------------------------------------------------------------- 마우스를 따라다니는 세로선
