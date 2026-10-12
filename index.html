@@ -15,6 +15,9 @@
   #summary { display:flex; gap:10px; flex-wrap:wrap; }
   .card { padding:8px 16px; border:1px solid var(--line); border-radius:10px; min-width:120px; background:#fff; }
   .card .t { font-size:12px; color:var(--sub); }
+  .card.tb { background:#f3f9fe; border-color:#dcecf9; }   /* 팔로워: 아주 연한 파랑 */
+  .card.tr { background:#fef5f5; border-color:#f8e0e1; }   /* 팔로잉: 아주 연한 빨강 */
+  .card.tg { background:#f2fbf7; border-color:#d9f1e6; }   /* 게시물: 아주 연한 녹색 */
   .card .v { font-size:22px; font-weight:700; }
   .controls { display:flex; gap:32px; flex-wrap:wrap; margin:12px 4px 4px; font-size:14px; }
   .controls label { margin-right:14px; cursor:pointer; }
@@ -280,7 +283,8 @@ function renderSummary(rows) {
     card("새 게시물 24시간", fmt(posts24), GREEN),
     posts7d === null ? card("새 게시물 7일", "–", GRAY) : card("새 게시물 7일", fmt(posts7d), GREEN),
     card("마지막 기록", last.ts.slice(5, 16), GRAY),
-  ].join("");
+  ].map((h, i) => h.replace('class="card"', `class="card ${["tb", "tr", "tg"][Math.floor(i / 4)]}"`))   // 4개씩 배경색
+   .join("");
 }
 
 // ---------------------------------------------------------------- 화면 갱신
