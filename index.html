@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xCounter</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root { --text:#0f1419; --sub:#536471; --line:#e1e8ed; --bg:#f7f9f9; --blue:#1d9bf0; --red:#f4212e; --green:#00ba7c; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:12px 16px; background:var(--bg); color:var(--text);
+         font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif; }
+  h1 { font-size:18px; margin:2px 4px 10px; }
+  h1 span { font-weight:400; color:var(--sub); font-size:13px; margin-left:8px; }
+  #summary { display:flex; gap:10px; flex-wrap:wrap; }
+  .card { padding:8px 16px; border:1px solid var(--line); border-radius:10px; min-width:120px; background:#fff; }
+  .card .t { font-size:12px; color:var(--sub); }
+  .card .v { font-size:22px; font-weight:700; }
+  .controls { display:flex; gap:32px; flex-wrap:wrap; margin:12px 4px 4px; font-size:14px; }
+  .controls label { margin-right:14px; cursor:pointer; }
+  #graph { height:calc(100vh - 200px); min-height:720px; background:#fff; }
+  footer { font-size:12px; color:var(--sub); margin:8px 4px; }
+</style>
+</head>
+<body>
+<h1 id="title">xCounter<span id="sub"></span></h1>
+<div id="summary"></div>
+<div class="controls">
+  <div><b>기간 </b>
+    <label><input type="radio" name="period" value="1d"> 1일</label>
+    <label><input type="radio" name="period" value="1w"> 1주</label>
+    <label><input type="radio" name="period" value="1m"> 1개월</label>
+    <label><input type="radio" name="period" value="all" checked> 전체</label>
+    <label><input type="radio" name="period" value="custom"> 직접 선택</label>
+  </div>
+  <div><b>증감 단위 </b>
+    <label><input type="radio" name="bucket" value="raw"> 수집 간격</label>
+    <label><input type="radio" name="bucket" value="1h" checked> 1시간</label>
+    <label><input type="radio" name="bucket" value="1d"> 1일</label>
+  </div>
+</div>
+<div id="graph"></div>
+<footer>X 공개 프로필의 숫자를 약 10분 간격으로 기록한 것입니다. 마우스 휠 = 확대/축소, 드래그 = 좌우 이동, 더블클릭 = 전체 보기</footer>
+
+<script>
+// ---------------------------------------------------------------- 설정
+const REFRESH_MS = 2 * 60 * 1000;       // 데이터를 다시 받는 주기
+const DAY = 864e5;
+const PERIODS = { "1d": DAY, "1w": 7 * DAY, "1m": 30 * DAY };
+const BUCKETS = { raw: null, "1h": 36e5, "1d": DAY };
+const BUCKET_LABEL = { raw: "수집 간격", "1h": "1시간", "1d": "1일" };
+const BLUE = "#1d9bf0", RED = "#f4212e", GRAY = "#536471", GREEN = "#00ba7c";
+
+// 시각은 수집한 곳(한국)의 시각 문자열 그대로 다룬다 (방문자 시간대와 무관)
+const toMs = s => { s = String(s).trim(); if (s.length === 10) s += " 00:00:00"; return Date.parse(s.replace(" ", "T") + "Z"); };
+const toStr = m => new Date(m).toISOString().slice(0, 19).replace("T", " ");
+
+let state = { period: "all", bucket: "1h", custom: null };
+let index = null;            // data/index.json
+const months = {};           // "2026-10" -> rows
+let rendering = false;
+
+// ---------------------------------------------------------------- 데이터
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const head = lines.shift().split(",");
+  const num = v => (v === undefined || v === "") ? null : Number(v);
+  const rows = [];
+  for (const line of lines) {
+    const c = line.split(","), o = {};
+    head.forEach((h, i) => o[h] = c[i]);
+    const r = { ts: o.timestamp, t: toMs(o.timestamp), followers: num(o.followers), following: num(o.following),
+                posts_total: num(o.posts_total), new_posts: num(o.new_posts) };
+    if (!isNaN(r.t) && r.followers !== null && r.following !== null) rows.push(r);
+  }
+  return rows;
+}
+
+async function fetchText(url, fresh) {
+  const res = await fetch(fresh ? `${url}?t=${Date.now()}` : url, { cache: fresh ? "no-store" : "default" });
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return res.text();
+}
+
+async function loadIndex() {
+  index = JSON.parse(await fetchText("data/index.json", true));
+  document.title = `@${index.username} 팔로워·팔로잉`;
+  document.getElementById("title").firstChild.textContent = `@${index.username} 팔로워·팔로잉`;
+  document.getElementById("sub").textContent = `업데이트 ${index.updated}`;
+}
+
+async function loadMonths(list, freshLast) {
+  const last = index.months[index.months.length - 1];
+  await Promise.all(list.map(async m => {
+    if (months[m] && !(freshLast && m === last)) return;
+    months[m] = parseCSV(await fetchText(`data/${m}.csv`, m === last));
+  }));
+}
+
+function allRows() {
+  const out = [], seen = new Set();
+  for (const m of Object.keys(months).sort()) for (const r of months[m]) if (!seen.has(r.t)) { seen.add(r.t); out.push(r); }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+const allLoaded = () => index.months.every(m => months[m]);
+
+// ---------------------------------------------------------------- 계산
+function bucketLast(rows, key, size) {          // 집계 단위별 마지막 값
+  const out = [];
+  for (const r of rows) {
+    if (r[key] === null) continue;
+    const b = size ? Math.floor(r.t / size) * size : r.t;
+    if (out.length && out[out.length - 1].t === b) out[out.length - 1].v = r[key];
+    else out.push({ t: b, v: r[key] });
+  }
+  return out;
+}
+
+function deltas(rows, key, bucket) {            // 집계 단위별 증감
+  const s = bucketLast(rows, key, BUCKETS[bucket]), d = [];
+  for (let i = 1; i < s.length; i++) d.push({ t: s[i].t, v: s[i].v - s[i - 1].v });
+  return d;
+}
+
+function newPostCounts(rows, bucket) {          // 집계 단위별 새 게시물 수
+  const size = BUCKETS[bucket];
+  const s = rows.filter(r => r.new_posts !== null);
+  if (!size) return s.map(r => ({ t: r.t, v: r.new_posts }));
+  if (!s.length) return [];
+  const sums = new Map();
+  for (const r of s) { const b = Math.floor(r.t / size) * size; sums.set(b, (sums.get(b) || 0) + r.new_posts); }
+  const out = [], first = Math.floor(s[0].t / size) * size, last = Math.floor(s[s.length - 1].t / size) * size;
+  for (let b = first; b <= last; b += size) out.push({ t: b, v: sums.get(b) || 0 });
+  return out;
+}
+
+function neighborDiffs(vals) {                  // 이전 값과의 차이, 다음 값과의 차이
+  const f = v => (v === null || isNaN(v)) ? "–" : (v >= 0 ? "+" : "") + v.toLocaleString("en-US");
+  return vals.map((v, i) => [i ? f(v - vals[i - 1]) : "–", i < vals.length - 1 ? f(vals[i + 1] - v) : "–"]);
+}
+
+function yRange(vals, includeZero) {
+  if (!vals.length) return undefined;
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (includeZero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  const pad = Math.max((hi - lo) * 0.08, 1);
+  return [lo - pad, hi + pad];
+}
+
+function visible(points, xr) {                  // 보이는 구간의 값 (없으면 전체)
+  if (!xr) return points;
+  const part = points.filter(p => p.t >= xr[0] && p.t <= xr[1]);
+  return part.length ? part : points;
+}
+
+function stems(points, color, name, axis) {     // 0 에서 값까지 세로선
+  const x = [], y = [];
+  for (const p of points) if (p.v) { x.push(toStr(p.t), toStr(p.t), null); y.push(0, p.v, null); }
+  return { x, y, mode: "lines", line: { color, width: 2 }, name, hoverinfo: "skip", showlegend: false, xaxis: "x" + axis, yaxis: "y" + axis };
+}
+
+function hoverPoints(points, template, name, axis) {   // 막대 위치에 보이지 않는 점 (마우스가 달라붙게)
+  return { x: points.map(p => toStr(p.t)), y: points.map(p => p.v), mode: "markers", marker: { size: 8, opacity: 0 },
+           hovertemplate: template, name, showlegend: false, xaxis: "x" + axis, yaxis: "y" + axis };
+}
+
+// ---------------------------------------------------------------- 그래프
+const DOMAINS = [[0.745, 1], [0.542, 0.695], [0.271, 0.492], [0, 0.221]];
+
+function buildFigure(rows) {
+  const bucket = state.bucket, label = BUCKET_LABEL[bucket];
+  const titles = ["팔로워", "팔로잉", `팔로잉 증감 (${label}별)`, `새 게시물 (${label}별)`];
+  const layout = {
+    template: "plotly_white", hovermode: "x unified", dragmode: "pan", showlegend: false, uirevision: "keep",
+    margin: { l: 70, r: 30, t: 40, b: 20 }, paper_bgcolor: "#fff", plot_bgcolor: "#fff",
+    font: { family: "'Malgun Gothic','Apple SD Gothic Neo',sans-serif" },
+    annotations: titles.map((text, i) => ({ text, xref: "paper", yref: "paper", x: 0.5, y: DOMAINS[i][1],
+      xanchor: "center", yanchor: "bottom", showarrow: false, font: { size: 16 } })),
+  };
+  for (let i = 1; i <= 4; i++) {
+    const ax = i === 1 ? "" : i;
+    layout["xaxis" + ax] = { anchor: "y" + ax, type: "date", showspikes: false, gridcolor: "#eef1f4",
+                             ...(i < 4 ? { matches: "x4", showticklabels: false } : {}) };
+    layout["yaxis" + ax] = { domain: DOMAINS[i - 1], anchor: "x" + ax, fixedrange: true, tickformat: ",d", gridcolor: "#eef1f4" };
+  }
+  if (!rows.length) {
+    layout.annotations.push({ text: "데이터 대기 중", xref: "paper", yref: "paper", x: 0.5, y: 0.5, showarrow: false, font: { size: 16 } });
+    return { data: [], layout };
+  }
+
+  // x 구간
+  const lastT = rows[rows.length - 1].t;
+  let xr = null;
+  if (PERIODS[state.period]) xr = [lastT - PERIODS[state.period], lastT];
+  else if (state.period === "custom" && state.custom) xr = state.custom;
+
+  const X = rows.map(r => r.ts);
+  const followers = rows.map(r => r.followers), following = rows.map(r => r.following);
+  const mode = rows.length <= 300 ? "lines+markers" : "lines";
+  const hover = "%{y:,d}  (이전 대비 %{customdata[0]} · 다음까지 %{customdata[1]})";
+  const d = deltas(rows, "following", bucket), posts = newPostCounts(rows, bucket);
+
+  const data = [
+    { x: X, y: followers, customdata: neighborDiffs(followers), name: "팔로워", mode, line: { color: BLUE, width: 2 },
+      marker: { size: 4 }, hovertemplate: hover, xaxis: "x", yaxis: "y" },
+    { x: X, y: following, customdata: neighborDiffs(following), name: "팔로잉", mode, line: { color: RED, width: 2 },
+      marker: { size: 4 }, hovertemplate: hover, xaxis: "x2", yaxis: "y2" },
+    stems(d.map(p => ({ t: p.t, v: Math.max(p.v, 0) })), BLUE, "증가", 3),
+    stems(d.map(p => ({ t: p.t, v: Math.min(p.v, 0) })), RED, "감소", 3),
+    hoverPoints(d, "%{y:+,d}", "팔로잉 증감", 3),
+    stems(posts, GREEN, "새 게시물", 4),
+    hoverPoints(posts, "%{y:,d}개", "새 게시물", 4),
+  ];
+
+  // x 축: 구간은 항상 여기서 지정한 값을 따르게 한다
+  Object.assign(layout.xaxis4, { uirevision: String(Date.now()), rangeslider: { visible: true, thickness: 0.07 } });
+  if (xr) Object.assign(layout.xaxis4, { range: [toStr(xr[0]), toStr(xr[1])], autorange: false });
+  else layout.xaxis4.autorange = true;
+
+  // y 축: 보이는 구간에 맞춘다
+  const pts = key => rows.map(r => ({ t: r.t, v: r[key] }));
+  layout.yaxis.range = yRange(visible(pts("followers"), xr).map(p => p.v));
+  layout.yaxis2.range = yRange(visible(pts("following"), xr).map(p => p.v));
+  if (d.length) Object.assign(layout.yaxis3, { range: yRange(visible(d, xr).map(p => p.v), true), zeroline: true, zerolinecolor: GRAY });
+  if (posts.length) layout.yaxis4.range = yRange(visible(posts, xr).map(p => p.v), true);
+  return { data, layout };
+}
+
+// ---------------------------------------------------------------- 요약 카드
+function changeSince(rows, key, period) {
+  const last = rows[rows.length - 1];
+  let past = null;
+  for (const r of rows) { if (r.t <= last.t - period) past = r; else break; }
+  return past ? last[key] - past[key] : null;
+}
+
+function card(title, value, color) {
+  return `<div class="card"><div class="t">${title}</div><div class="v" style="color:${color || "var(--text)"}">${value}</div></div>`;
+}
+const fmt = v => v.toLocaleString("en-US");
+const deltaCard = (title, v) => v === null ? card(title, "–", GRAY) : card(title, (v >= 0 ? "+" : "") + fmt(v), v >= 0 ? BLUE : RED);
+
+function renderSummary(rows) {
+  const el = document.getElementById("summary");
+  if (!rows.length) { el.innerHTML = card("데이터", "없음", GRAY); return; }
+  const last = rows[rows.length - 1], prev = rows.length > 1 ? rows[rows.length - 2] : null;
+  const recent = key => prev ? last[key] - prev[key] : null;
+  const posts24 = rows.filter(r => r.t > last.t - DAY && r.new_posts !== null).reduce((s, r) => s + r.new_posts, 0);
+  el.innerHTML = [
+    card("팔로워", fmt(last.followers)),
+    deltaCard("팔로워 최근 변동", recent("followers")),
+    deltaCard("팔로워 24시간", changeSince(rows, "followers", DAY)),
+    deltaCard("팔로워 7일", changeSince(rows, "followers", 7 * DAY)),
+    card("팔로잉", fmt(last.following)),
+    deltaCard("팔로잉 최근 변동", recent("following")),
+    deltaCard("팔로잉 24시간", changeSince(rows, "following", DAY)),
+    deltaCard("팔로잉 7일", changeSince(rows, "following", 7 * DAY)),
+    card("게시물", last.posts_total === null ? "–" : fmt(last.posts_total)),
+    card("새 게시물 24시간", fmt(posts24), GREEN),
+    card("마지막 기록", last.ts.slice(5, 16), GRAY),
+  ].join("");
+}
+
+// ---------------------------------------------------------------- 화면 갱신
+async function render() {
+  if (!index) return;
+  // 전체 보기나 불러온 범위보다 앞을 보려면 지난 달 파일도 받는다
+  let rows = allRows();
+  const needAll = state.period === "all" || (state.period === "custom" && state.custom && rows.length && state.custom[0] < rows[0].t);
+  if (needAll && !allLoaded()) { await loadMonths(index.months, false); rows = allRows(); }
+  renderSummary(rows);
+  const { data, layout } = buildFigure(rows);
+  rendering = true;
+  try { await Plotly.react("graph", data, layout, { scrollZoom: true, displaylogo: false, responsive: true }); }
+  finally { rendering = false; }
+}
+
+function parseRelayout(ev) {                    // 그래프 조작에서 x 구간을 꺼낸다
+  let lo = null, hi = null;
+  for (const [k, v] of Object.entries(ev || {})) {
+    if (/^xaxis\d*\.autorange$/.test(k) && v) return "auto";
+    if (/^xaxis\d*\.range$/.test(k)) [lo, hi] = v;
+    else if (/^xaxis\d*\.range\[0\]$/.test(k)) lo = v;
+    else if (/^xaxis\d*\.range\[1\]$/.test(k)) hi = v;
+  }
+  return lo !== null && hi !== null ? [toMs(lo), toMs(hi)] : null;
+}
+
+function syncRadios() {
+  for (const name of ["period", "bucket"])
+    for (const el of document.querySelectorAll(`input[name=${name}]`)) el.checked = el.value === state[name];
+}
+
+async function refresh() {
+  try {
+    await loadIndex();
+    const m = index.months;
+    await loadMonths(m.slice(-2), true);       // 최근 두 달 (이번 달은 항상 새로)
+    await render();
+  } catch (e) { console.error(e); }
+}
+
+document.querySelectorAll("input[name=period], input[name=bucket]").forEach(el =>
+  el.addEventListener("change", () => { state[el.name] = el.value; render(); }));
+
+(async () => {
+  await refresh();
+  document.getElementById("graph").on("plotly_relayout", ev => {
+    if (rendering) return;
+    const p = parseRelayout(ev);
+    if (p === "auto") { state.period = "all"; state.custom = null; }
+    else if (p) { state.custom = p; state.period = "custom"; }
+    else return;
+    syncRadios();
+    render();
+  });
+  setInterval(refresh, REFRESH_MS);
+})();
+
+// ---------------------------------------------------------------- 마우스를 따라다니는 세로선
+(function () {
+  const line = document.createElement("div");
+  line.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;border-left:1px solid rgba(83,100,113,0.6);" +
+                       "pointer-events:none;z-index:9999;display:none;";
+  document.body.appendChild(line);
+  document.addEventListener("mousemove", e => {
+    const graph = document.getElementById("graph");
+    let top = graph.getBoundingClientRect().top;
+    const slider = graph.querySelector(".rangeslider-bg");
+    let bottom = slider ? slider.getBoundingClientRect().top : graph.getBoundingClientRect().bottom;
+    top = Math.max(top, 0); bottom = Math.min(bottom, window.innerHeight);
+    if (bottom <= top) { line.style.display = "none"; return; }
+    Object.assign(line.style, { left: e.clientX + "px", top: top + "px", height: (bottom - top) + "px", display: "block" });
+  });
+  document.documentElement.addEventListener("mouseleave", () => line.style.display = "none");
+})();
+</script>
+</body>
+</html>
