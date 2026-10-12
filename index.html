@@ -299,6 +299,7 @@ async function render() {
   rendering = true;
   try { await Plotly.react("graph", data, layout, { scrollZoom: true, displaylogo: false, responsive: true, displayModeBar: window.innerWidth >= 700 }); }
   finally { rendering = false; }
+  window.dispatchEvent(new Event("graph-rendered"));   // 세로선 위치 다시 맞춤
 }
 
 function parseRelayout(ev) {                    // 그래프 조작에서 x 구간을 꺼낸다
@@ -362,14 +363,27 @@ document.querySelectorAll("input[name=period], input[name=bucket]").forEach(el =
     if (bottom <= top) { line.style.display = "none"; return; }
     Object.assign(line.style, { left: x + "px", top: top + "px", height: (bottom - top) + "px", display: "block" });
   }
-  document.addEventListener("mousemove", e => place(e.clientX));
+  document.addEventListener("pointermove", e => { if (e.pointerType === "mouse") place(e.clientX); });   // 실제 마우스만 (터치가 흉내 내는 마우스 이벤트 제외)
   document.documentElement.addEventListener("mouseleave", () => line.style.display = "none");
   // 휴대폰: 손가락으로 누르거나 움직이는 위치를 따라감 (스크롤하면 위치를 다시 맞춤)
-  const onTouch = e => { if (e.touches.length) place(e.touches[0].clientX); };
+  // 휴대폰: 그래프 영역 안을 누를 때만 보임 (카드·버튼을 누르거나 당겨서 새로고침할 땐 숨김)
+  const onTouch = e => {
+    if (!e.touches.length) return;
+    const t = e.touches[0], r = document.getElementById("graph").getBoundingClientRect();
+    if (t.clientY < r.top || t.clientY > r.bottom) { line.style.display = "none"; return; }
+    place(t.clientX);
+  };
   document.addEventListener("touchstart", onTouch, { passive: true });
   document.addEventListener("touchmove", onTouch, { passive: true });
-  window.addEventListener("scroll", () => { if (lastX !== null && line.style.display === "block") place(lastX); }, { passive: true });
+  const replace = () => { if (lastX !== null && line.style.display === "block") place(lastX); };
+  window.addEventListener("scroll", replace, { passive: true });
+  window.addEventListener("resize", replace);
+  window.addEventListener("graph-rendered", replace);         // 카드가 그려진 뒤 위치가 바뀌면 다시 맞춤
+  window.addEventListener("pageshow", () => { line.style.display = "none"; lastX = null; });
 })();
 </script>
+<!-- 방문 통계 (GoatCounter) -->
+<script data-goatcounter="https://xcount.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
