@@ -55,7 +55,7 @@
   </div>
 </div>
 <div id="graph"></div>
-<footer>X 공개 프로필의 숫자를 약 5분 간격으로 기록한 것입니다. 마우스 휠 = 확대/축소, 드래그 = 좌우 이동, 더블클릭 = 전체 보기</footer>
+<footer>X 공개 프로필의 숫자를 약 5분 간격으로 기록한 것입니다.<br>마우스 휠 = 확대/축소, 드래그 = 좌우 이동, 더블클릭 = 전체 보기</footer>
 
 <script>
 // ---------------------------------------------------------------- 설정
@@ -264,7 +264,9 @@ function renderSummary(rows) {
   if (!rows.length) { el.innerHTML = card("데이터", "없음", GRAY); return; }
   const last = rows[rows.length - 1], prev = rows.length > 1 ? rows[rows.length - 2] : null;
   const recent = key => prev ? last[key] - prev[key] : null;
-  const posts24 = rows.filter(r => r.t > last.t - DAY && r.new_posts !== null).reduce((s, r) => s + r.new_posts, 0);
+  const postsSince = period => rows.filter(r => r.t > last.t - period && r.new_posts !== null).reduce((s, r) => s + r.new_posts, 0);
+  const posts24 = postsSince(DAY);
+  const posts7d = rows[0].t <= last.t - 7 * DAY ? postsSince(7 * DAY) : null;   // 7일치 기록이 없으면 "–"
   el.innerHTML = [
     card("팔로워", fmt(last.followers)),
     deltaCard("팔로워 최근 변동", recent("followers")),
@@ -276,6 +278,7 @@ function renderSummary(rows) {
     deltaCard("팔로잉 7일", changeSince(rows, "following", 7 * DAY)),
     card("게시물", last.posts_total === null ? "–" : fmt(last.posts_total)),
     card("새 게시물 24시간", fmt(posts24), GREEN),
+    posts7d === null ? card("새 게시물 7일", "–", GRAY) : card("새 게시물 7일", fmt(posts7d), GREEN),
     card("마지막 기록", last.ts.slice(5, 16), GRAY),
   ].join("");
 }
