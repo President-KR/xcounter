@@ -269,13 +269,13 @@ function renderSummary(rows) {
   const posts7d = rows[0].t <= last.t - 7 * DAY ? postsSince(7 * DAY) : null;   // 7일치 기록이 없으면 "–"
   el.innerHTML = [
     card("팔로워", fmt(last.followers)),
-    deltaCard("팔로워 최근 변동", recent("followers")),
     deltaCard("팔로워 24시간", changeSince(rows, "followers", DAY)),
     deltaCard("팔로워 7일", changeSince(rows, "followers", 7 * DAY)),
+    deltaCard("팔로워 최근 변동", recent("followers")),
     card("팔로잉", fmt(last.following)),
-    deltaCard("팔로잉 최근 변동", recent("following")),
     deltaCard("팔로잉 24시간", changeSince(rows, "following", DAY)),
     deltaCard("팔로잉 7일", changeSince(rows, "following", 7 * DAY)),
+    deltaCard("팔로잉 최근 변동", recent("following")),
     card("게시물", last.posts_total === null ? "–" : fmt(last.posts_total)),
     card("새 게시물 24시간", fmt(posts24), GREEN),
     posts7d === null ? card("새 게시물 7일", "–", GRAY) : card("새 게시물 7일", fmt(posts7d), GREEN),
