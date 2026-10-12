@@ -103,7 +103,7 @@ async function fetchText(url, fresh) {
 async function loadIndex() {
   index = JSON.parse(await fetchText("data/index.json", true));
   document.title = `@${index.username} 팔로워·팔로잉`;
-  document.getElementById("title").firstChild.textContent = `X@${index.username} 팔로워·팔로잉 확인중...`;
+  document.getElementById("title").firstChild.textContent = `X@${index.username} 팔로워·팔로잉을 알아보자`;
   document.getElementById("sub").textContent = `업데이트 ${index.updated}`;
 }
 
