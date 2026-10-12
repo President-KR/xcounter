@@ -344,16 +344,24 @@ document.querySelectorAll("input[name=period], input[name=bucket]").forEach(el =
   line.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;border-left:1px solid rgba(83,100,113,0.6);" +
                        "pointer-events:none;z-index:9999;display:none;";
   document.body.appendChild(line);
-  document.addEventListener("mousemove", e => {
+  let lastX = null;
+  function place(x) {
+    lastX = x;
     const graph = document.getElementById("graph");
     let top = graph.getBoundingClientRect().top;
     const slider = graph.querySelector(".rangeslider-bg");
     let bottom = slider ? slider.getBoundingClientRect().top : graph.getBoundingClientRect().bottom;
     top = Math.max(top, 0); bottom = Math.min(bottom, window.innerHeight);
     if (bottom <= top) { line.style.display = "none"; return; }
-    Object.assign(line.style, { left: e.clientX + "px", top: top + "px", height: (bottom - top) + "px", display: "block" });
-  });
+    Object.assign(line.style, { left: x + "px", top: top + "px", height: (bottom - top) + "px", display: "block" });
+  }
+  document.addEventListener("mousemove", e => place(e.clientX));
   document.documentElement.addEventListener("mouseleave", () => line.style.display = "none");
+  // 휴대폰: 손가락으로 누르거나 움직이는 위치를 따라감 (스크롤하면 위치를 다시 맞춤)
+  const onTouch = e => { if (e.touches.length) place(e.touches[0].clientX); };
+  document.addEventListener("touchstart", onTouch, { passive: true });
+  document.addEventListener("touchmove", onTouch, { passive: true });
+  window.addEventListener("scroll", () => { if (lastX !== null && line.style.display === "block") place(lastX); }, { passive: true });
 })();
 </script>
 </body>
