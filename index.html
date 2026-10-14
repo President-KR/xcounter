@@ -265,24 +265,25 @@ const deltaCard = (title, v) => v === null ? card(title, "–", GRAY) : card(tit
 function renderSummary(rows) {
   const el = document.getElementById("summary");
   if (!rows.length) { el.innerHTML = card("데이터", "없음", GRAY); return; }
-  const last = rows[rows.length - 1], prev = rows.length > 1 ? rows[rows.length - 2] : null;
-  const recent = key => prev ? last[key] - prev[key] : null;
+  const last = rows[rows.length - 1];
   const postsSince = period => rows.filter(r => r.t > last.t - period && r.new_posts !== null).reduce((s, r) => s + r.new_posts, 0);
   const posts24 = postsSince(DAY);
-  const posts7d = rows[0].t <= last.t - 7 * DAY ? postsSince(7 * DAY) : null;   // 7일치 기록이 없으면 "–"
+  const postsFor = days => rows[0].t <= last.t - days * DAY ? postsSince(days * DAY) : null;   // 기록이 그만큼 없으면 "–"
+  const posts7d = postsFor(7), posts30d = postsFor(30);
+  const postsCard = (title, v) => v === null ? card(title, "–", GRAY) : card(title, fmt(v), GREEN);
   el.innerHTML = [
     card("팔로워", fmt(last.followers)),
     deltaCard("팔로워 24시간", changeSince(rows, "followers", DAY)),
     deltaCard("팔로워 7일", changeSince(rows, "followers", 7 * DAY)),
-    deltaCard("팔로워 최근 변동", recent("followers")),
+    deltaCard("팔로워 30일", changeSince(rows, "followers", 30 * DAY)),
     card("팔로잉", fmt(last.following)),
     deltaCard("팔로잉 24시간", changeSince(rows, "following", DAY)),
     deltaCard("팔로잉 7일", changeSince(rows, "following", 7 * DAY)),
-    deltaCard("팔로잉 최근 변동", recent("following")),
+    deltaCard("팔로잉 30일", changeSince(rows, "following", 30 * DAY)),
     card("게시물", last.posts_total === null ? "–" : fmt(last.posts_total)),
     card("새 게시물 24시간", fmt(posts24), GREEN),
-    posts7d === null ? card("새 게시물 7일", "–", GRAY) : card("새 게시물 7일", fmt(posts7d), GREEN),
-    card("마지막 기록", last.ts.slice(5, 16), GRAY),
+    postsCard("새 게시물 7일", posts7d),
+    postsCard("새 게시물 30일", posts30d),
   ].map((h, i) => h.replace('class="card"', `class="card ${["tb", "tr", "tg"][Math.floor(i / 4)]}"`))   // 4개씩 배경색
    .join("");
 }
