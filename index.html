@@ -333,7 +333,7 @@ function renderNotices() {
   const el = document.getElementById("notice");
   const items = [
     ...(notices.notices || []).map(n => ({ key: n.date, html: `<span class="d">${esc(n.date)}</span>${esc(n.text)}` })),
-    ...(notices.gaps || []).map(g => ({ key: g[0], html: `<span class="d">${g[0].slice(0, 10)}</span>수집 중단: ${gapText(g)} 동안 기록이 없습니다.` })),
+    ...(notices.gaps || []).map(g => ({ key: g[0], html: `<span class="d">${g[0].slice(0, 10)}</span>수집 중단: ${gapText(g)} 사정이 생겨서 데이터 수집을 잠시 정지하였습니다.` })),
   ].sort((a, b) => b.key.localeCompare(a.key));
   if (!items.length) { el.hidden = true; return; }
   const SHOW = 3, list = noticeOpen ? items : items.slice(0, SHOW);
