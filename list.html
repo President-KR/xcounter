@@ -136,7 +136,7 @@ async function load() {
   const index = JSON.parse(await fetchText("data/index.json"));
   document.title = `@${index.username} 기록`;
   document.getElementById("title").firstChild.textContent = `X@${index.username}의 팔로워·팔로잉의 변화를 알아보자`;
-  document.getElementById("sub").textContent = `업데이트 ${index.updated}`;
+  document.getElementById("sub").textContent = `최근 업데이트 ${index.updated}`;
   const [months, images, notices] = await Promise.all([
     Promise.all(index.months.map(m => fetchText(`data/${m}.csv`).then(parseCSV))),
     fetchJSON("data/images.json", { following: [], posts: [] }),
