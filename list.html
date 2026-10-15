@@ -216,7 +216,8 @@ function openModal(kind, i) {
   if (kind === "f") {
     document.getElementById("mtitle").textContent = `팔로잉 화면 · ${r.ts}`;
     for (const f of r.fimg)
-      body.push(`<div class="item"><div class="cap">${f.ts} 화면 · 팔로잉 ${fmt(f.following)}</div><img src="${f.img}" alt="팔로잉 화면 ${f.ts}"></div>`);
+      body.push(`<div class="item"><div class="cap">${f.ts} 화면 · 팔로잉 ${fmt(f.following)}</div>` +
+        (f.img ? `<img src="${f.img}" alt="팔로잉 화면 ${f.ts}">` : `<div class="text">이 화면은 보관 기간이 지나 웹사이트에서 내려갔습니다.</div>`) + `</div>`);
   } else {
     document.getElementById("mtitle").textContent = `새 게시물 · ${r.ts}`;
     for (const p of r.posts) {
