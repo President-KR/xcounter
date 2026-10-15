@@ -80,7 +80,7 @@
   </table>
 </div>
 <div class="pager" id="pager"></div>
-<footer>증감은 바로 앞 수집과 비교한 값입니다. '팔로잉 화면'은 팔로잉 숫자가 바뀐 순간의 프로필 화면, '게시물'은 새로 올라온 게시물 화면입니다.</footer>
+<footer>증감은 바로 앞 수집과 비교한 값입니다. '프로필 화면'은 팔로잉 숫자가 바뀌거나 팔로워가 줄어든 순간의 프로필 화면, '게시물'은 새로 올라온 게시물 화면입니다.</footer>
 
 <div id="modal" hidden><div class="box">
   <div class="top"><span id="mtitle"></span><button class="x" id="mclose">닫기 ✕</button></div>
@@ -179,7 +179,7 @@ function render() {
 
   const html = [];
   for (const r of part) {
-    const btns = (r.fimg.length ? `<button class="img f" data-k="f" data-i="${r.i}">팔로잉 화면</button>` : "") +
+    const btns = (r.fimg.length ? `<button class="img f" data-k="f" data-i="${r.i}">프로필 화면</button>` : "") +
                  (r.posts.length ? `<button class="img" data-k="p" data-i="${r.i}">게시물 ${r.posts.length}</button>` : "");
     html.push(`<tr><td class="t">${r.ts}</td><td>${fmt(r.followers)}</td><td>${delta(r.dF)}</td>` +
       `<td>${fmt(r.following)}</td><td>${delta(r.dG)}</td>` +
@@ -214,10 +214,10 @@ const TYPE = { post: "게시물", thread: "스레드" };
 function openModal(kind, i) {
   const r = rows[i], body = [];
   if (kind === "f") {
-    document.getElementById("mtitle").textContent = `팔로잉 화면 · ${r.ts}`;
+    document.getElementById("mtitle").textContent = `프로필 화면 · ${r.ts}`;
     for (const f of r.fimg)
       body.push(`<div class="item"><div class="cap">${f.ts} 화면 · 팔로잉 ${fmt(f.following)}</div>` +
-        (f.img ? `<img src="${f.img}" alt="팔로잉 화면 ${f.ts}">` : `<div class="text">이 화면은 보관 기간이 지나 웹사이트에서 내려갔습니다.</div>`) + `</div>`);
+        (f.img ? `<img src="${f.img}" alt="프로필 화면 ${f.ts}">` : `<div class="text">이 화면은 보관 기간이 지나 웹사이트에서 내려갔습니다.</div>`) + `</div>`);
   } else {
     document.getElementById("mtitle").textContent = `새 게시물 · ${r.ts}`;
     for (const p of r.posts) {
