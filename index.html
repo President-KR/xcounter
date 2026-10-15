@@ -23,6 +23,10 @@
   .controls label { margin-right:14px; cursor:pointer; }
   #graph { height:calc(100vh - 200px); min-height:720px; background:#fff; }
   footer { font-size:12px; color:var(--sub); margin:8px 4px; }
+  nav.tabs { display:flex; gap:6px; margin:0 4px 10px; }
+  nav.tabs a { padding:4px 14px; border:1px solid var(--line); border-radius:999px; background:#fff;
+               color:var(--text); text-decoration:none; font-size:13px; }
+  nav.tabs a.on { background:var(--text); color:#fff; border-color:var(--text); }
   #notice { background:#fff; border:1px solid var(--line); border-radius:10px; padding:6px 12px; margin:0 0 10px; font-size:13px; }
   #notice ul { margin:2px 0 0; padding-left:18px; }
   #notice li { margin:1px 0; }
@@ -42,6 +46,8 @@
     .controls label { margin-right:8px; white-space:nowrap; }
     #graph { height:calc(100vh - 260px); min-height:560px; }
     footer { font-size:11px; }
+    nav.tabs { margin:0 2px 6px; }
+    nav.tabs a { font-size:12px; padding:3px 12px; }
     #notice { font-size:11px; padding:4px 8px; margin-bottom:6px; border-radius:6px; }
     #notice ul { padding-left:14px; }
   }
@@ -49,6 +55,7 @@
 </head>
 <body>
 <h1 id="title">xCounter<span id="sub"></span></h1>
+<nav class="tabs"><a class="on" href="./">그래프</a><a href="list.html">기록</a></nav>
 <div id="notice" hidden></div>
 <div id="summary"></div>
 <div class="controls">

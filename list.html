@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xCounter 기록</title>
+<style>
+  :root { --text:#0f1419; --sub:#536471; --line:#e1e8ed; --bg:#f7f9f9; --blue:#1d9bf0; --red:#f4212e; --green:#00ba7c; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:12px 16px; background:var(--bg); color:var(--text);
+         font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif; }
+  h1 { font-size:18px; margin:2px 4px 10px; }
+  h1 span { font-weight:400; color:var(--sub); font-size:13px; margin-left:8px; }
+  nav.tabs { display:flex; gap:6px; margin:0 4px 10px; }
+  nav.tabs a { padding:4px 14px; border:1px solid var(--line); border-radius:999px; background:#fff;
+               color:var(--text); text-decoration:none; font-size:13px; }
+  nav.tabs a.on { background:var(--text); color:#fff; border-color:var(--text); }
+  .controls { display:flex; gap:10px 18px; flex-wrap:wrap; align-items:center; margin:0 4px 8px; font-size:14px; }
+  .controls input[type=date] { font:inherit; padding:2px 4px; }
+  .controls button { font:inherit; font-size:13px; padding:3px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; }
+  #count { color:var(--sub); font-size:13px; }
+  .wrap { overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:10px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  th, td { padding:5px 10px; border-bottom:1px solid #eef1f4; text-align:right; white-space:nowrap; }
+  th { background:#f2f5f7; color:var(--sub); font-weight:600; position:sticky; top:0; }
+  th.t, td.t { text-align:left; }
+  td.s, th.s { text-align:left; }
+  .up { color:var(--blue); } .down { color:var(--red); } .zero { color:#b0b9c0; }
+  td.np { color:var(--green); }
+  button.img { font:inherit; font-size:12px; padding:1px 8px; margin-right:4px; border-radius:999px; cursor:pointer;
+               border:1px solid #d9f1e6; background:#f2fbf7; color:#007a52; }
+  button.img.f { border-color:#f8e0e1; background:#fef5f5; color:#c21420; }
+  tr.gap td { background:#f2f4f5; color:var(--sub); text-align:center; font-size:12px; }
+  .pager { display:flex; gap:6px; justify-content:center; align-items:center; margin:10px 0; font-size:13px; }
+  .pager button { font:inherit; padding:3px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; cursor:pointer; }
+  .pager button:disabled { opacity:.4; cursor:default; }
+  footer { font-size:12px; color:var(--sub); margin:8px 4px; }
+  #modal { position:fixed; inset:0; background:rgba(15,20,25,.6); z-index:100; display:flex; justify-content:center; align-items:flex-start; overflow-y:auto; padding:20px 8px; }
+  #modal[hidden] { display:none; }
+  #modal .box { background:#fff; border-radius:12px; max-width:640px; width:100%; padding:12px; }
+  #modal .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:14px; font-weight:700; }
+  #modal .x { font:inherit; font-size:13px; border:1px solid var(--line); border-radius:6px; background:#fff; padding:3px 10px; cursor:pointer; }
+  #modal .item { margin-bottom:14px; }
+  #modal .cap { font-size:12px; color:var(--sub); margin:0 0 4px; }
+  #modal .cap a { color:var(--blue); }
+  #modal .del { color:var(--red); font-weight:700; }
+  #modal img { width:100%; height:auto; border:1px solid var(--line); border-radius:6px; display:block; }
+  #modal .text { white-space:pre-wrap; font-size:13px; border:1px solid var(--line); border-radius:6px; padding:8px; }
+
+  @media (max-width: 700px) {
+    body { padding:8px; }
+    h1 { font-size:15px; margin:0 2px 6px; }
+    h1 span { display:block; margin:2px 0 0; font-size:11px; }
+    nav.tabs { margin:0 2px 6px; }
+    nav.tabs a { font-size:12px; padding:3px 12px; }
+    .controls { font-size:12px; gap:6px 10px; margin:0 2px 6px; }
+    table { font-size:11px; }
+    th, td { padding:4px 4px; }
+    .hide-m { display:none; }
+    button.img { font-size:10px; padding:1px 5px; margin-right:2px; }
+  }
+</style>
+</head>
+<body>
+<h1 id="title">xCounter<span id="sub"></span></h1>
+<nav class="tabs"><a href="./">그래프</a><a class="on" href="list.html">기록</a></nav>
+<div class="controls">
+  <label>날짜 <input type="date" id="date"></label>
+  <button id="all">전체</button>
+  <label><input type="checkbox" id="onlyImg"> 화면 있는 기록만</label>
+  <span id="count"></span>
+</div>
+<div class="wrap">
+  <table>
+    <thead><tr>
+      <th class="t">수집 시각</th><th>팔로워</th><th>증감</th><th>팔로잉</th><th>증감</th>
+      <th class="hide-m">게시물</th><th>새 게시물</th><th class="s">화면</th>
+    </tr></thead>
+    <tbody id="rows"><tr><td colspan="8" class="t">불러오는 중…</td></tr></tbody>
+  </table>
+</div>
+<div class="pager" id="pager"></div>
+<footer>증감은 바로 앞 수집과 비교한 값입니다. '팔로잉 화면'은 팔로잉 숫자가 바뀐 순간의 프로필 화면, '게시물'은 새로 올라온 게시물 화면입니다.</footer>
+
+<div id="modal" hidden><div class="box">
+  <div class="top"><span id="mtitle"></span><button class="x" id="mclose">닫기 ✕</button></div>
+  <div id="mbody"></div>
+</div></div>
+
+<script>
+const PAGE = 50;                    // 한 페이지 줄 수
+const ATTACH_MIN = 10;              // 화면 시각과 수집 시각이 이 안이면 그 줄에 붙인다(분)
+const toMs = s => Date.parse(String(s).trim().replace(" ", "T") + "Z");
+const fmt = v => v.toLocaleString("en-US");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+let rows = [], gapEnds = new Map();
+let state = { date: "", onlyImg: false, page: 0 };
+
+async function fetchText(url) {
+  const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return res.text();
+}
+const fetchJSON = (url, fallback) => fetchText(url).then(JSON.parse).catch(() => fallback);
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  const head = lines.shift().split(",");
+  const num = v => (v === undefined || v === "") ? null : Number(v);
+  const out = [];
+  for (const line of lines) {
+    const c = line.split(","), o = {};
+    head.forEach((h, i) => o[h] = c[i]);
+    const r = { ts: o.timestamp, followers: num(o.followers), following: num(o.following),
+                posts_total: num(o.posts_total), new_posts: num(o.new_posts) };
+    if (r.ts && r.followers !== null && r.following !== null) out.push(r);
+  }
+  return out;
+}
+
+function firstAtOrAfter(ts) {                   // ts 이상인 첫 줄 (이진 탐색)
+  let lo = 0, hi = rows.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (rows[mid].ts < ts) lo = mid + 1; else hi = mid; }
+  return lo < rows.length ? lo : -1;
+}
+
+function attach(list, key, field) {             // 화면을 가장 가까운 (같거나 뒤) 수집 줄에 붙인다
+  for (const item of list) {
+    const i = firstAtOrAfter(item[key]);
+    if (i >= 0 && toMs(rows[i].ts) - toMs(item[key]) <= ATTACH_MIN * 6e4) rows[i][field].push(item);
+  }
+}
+
+async function load() {
+  const index = JSON.parse(await fetchText("data/index.json"));
+  document.title = `@${index.username} 기록`;
+  document.getElementById("title").firstChild.textContent = `X@${index.username}의 팔로워·팔로잉의 변화를 알아보자`;
+  document.getElementById("sub").textContent = `업데이트 ${index.updated}`;
+  const [months, images, notices] = await Promise.all([
+    Promise.all(index.months.map(m => fetchText(`data/${m}.csv`).then(parseCSV))),
+    fetchJSON("data/images.json", { following: [], posts: [] }),
+    fetchJSON("data/notices.json", { gaps: [] }),
+  ]);
+  const seen = new Set();
+  rows = months.flat().filter(r => !seen.has(r.ts) && seen.add(r.ts)).sort((a, b) => a.ts < b.ts ? -1 : 1);
+  rows.forEach((r, i) => {
+    r.i = i;
+    r.dF = i ? r.followers - rows[i - 1].followers : null;
+    r.dG = i ? r.following - rows[i - 1].following : null;
+    r.fimg = []; r.posts = [];
+  });
+  attach(images.following || [], "ts", "fimg");
+  attach(images.posts || [], "detected_at", "posts");
+  gapEnds = new Map((notices.gaps || []).map(g => [g[1], g]));
+  if (rows.length) {
+    const d = document.getElementById("date");
+    d.min = rows[0].ts.slice(0, 10); d.max = rows[rows.length - 1].ts.slice(0, 10);
+  }
+}
+
+// ---------------------------------------------------------------- 목록
+const delta = v => v === null ? '<span class="zero">–</span>'
+  : v > 0 ? `<span class="up">+${fmt(v)}</span>` : v < 0 ? `<span class="down">${fmt(v)}</span>` : '<span class="zero">0</span>';
+
+function gapText(g) {
+  const min = Math.round((toMs(g[1]) - toMs(g[0])) / 6e4), h = Math.floor(min / 60), m = min % 60;
+  return `수집 중단: ${g[0].slice(5, 16)} ~ ${g[1].slice(5, 16)} (${h ? h + "시간 " : ""}${m}분)`;
+}
+
+function render() {
+  let list = rows;
+  if (state.date) list = list.filter(r => r.ts.startsWith(state.date));
+  if (state.onlyImg) list = list.filter(r => r.fimg.length || r.posts.length);
+  list = list.slice().reverse();                // 최신순
+  const pages = Math.max(1, Math.ceil(list.length / PAGE));
+  state.page = Math.min(Math.max(state.page, 0), pages - 1);
+  const part = list.slice(state.page * PAGE, (state.page + 1) * PAGE);
+
+  const html = [];
+  for (const r of part) {
+    const btns = (r.fimg.length ? `<button class="img f" data-k="f" data-i="${r.i}">팔로잉 화면</button>` : "") +
+                 (r.posts.length ? `<button class="img" data-k="p" data-i="${r.i}">게시물 ${r.posts.length}</button>` : "");
+    html.push(`<tr><td class="t">${r.ts}</td><td>${fmt(r.followers)}</td><td>${delta(r.dF)}</td>` +
+      `<td>${fmt(r.following)}</td><td>${delta(r.dG)}</td>` +
+      `<td class="hide-m">${r.posts_total === null ? "–" : fmt(r.posts_total)}</td>` +
+      `<td class="np">${r.new_posts ? r.new_posts : '<span class="zero">0</span>'}</td><td class="s">${btns}</td></tr>`);
+    if (gapEnds.has(r.ts) && !state.onlyImg) html.push(`<tr class="gap"><td colspan="8">${gapText(gapEnds.get(r.ts))}</td></tr>`);
+  }
+  document.getElementById("rows").innerHTML = html.join("") || '<tr><td colspan="8" class="t">기록이 없습니다.</td></tr>';
+  document.getElementById("count").textContent = `${fmt(list.length)}건`;
+
+  const pg = document.getElementById("pager");
+  pg.innerHTML = `<button data-p="first">« 처음</button><button data-p="prev">‹ 최신 쪽</button>` +
+                 `<span>${state.page + 1} / ${pages}</span>` +
+                 `<button data-p="next">이전 기록 ›</button><button data-p="last">끝 »</button>`;
+  pg.querySelector('[data-p="first"]').disabled = pg.querySelector('[data-p="prev"]').disabled = state.page === 0;
+  pg.querySelector('[data-p="next"]').disabled = pg.querySelector('[data-p="last"]').disabled = state.page >= pages - 1;
+}
+
+document.getElementById("pager").addEventListener("click", e => {
+  const p = e.target.dataset.p;
+  if (!p || e.target.disabled) return;
+  state.page = { first: 0, prev: state.page - 1, next: state.page + 1, last: 1e9 }[p];
+  render();
+  window.scrollTo(0, 0);
+});
+document.getElementById("date").addEventListener("change", e => { state.date = e.target.value; state.page = 0; render(); });
+document.getElementById("all").addEventListener("click", () => { document.getElementById("date").value = ""; state.date = ""; state.page = 0; render(); });
+document.getElementById("onlyImg").addEventListener("change", e => { state.onlyImg = e.target.checked; state.page = 0; render(); });
+
+// ---------------------------------------------------------------- 화면 보기
+const TYPE = { post: "게시물", thread: "스레드" };
+function openModal(kind, i) {
+  const r = rows[i], body = [];
+  if (kind === "f") {
+    document.getElementById("mtitle").textContent = `팔로잉 화면 · ${r.ts}`;
+    for (const f of r.fimg)
+      body.push(`<div class="item"><div class="cap">${f.ts} 화면 · 팔로잉 ${fmt(f.following)}</div><img src="${f.img}" alt="팔로잉 화면 ${f.ts}"></div>`);
+  } else {
+    document.getElementById("mtitle").textContent = `새 게시물 · ${r.ts}`;
+    for (const p of r.posts) {
+      const del = p.deleted_at ? ` · <span class="del">삭제됨 (${esc(p.deleted_at)} 확인)</span>` : "";
+      body.push(`<div class="item"><div class="cap">${TYPE[p.type] || esc(p.type)} · 게시 ${esc(p.posted_at)}${del} · ` +
+        `<a href="${esc(p.url)}" target="_blank" rel="noopener">X 에서 보기</a></div>` +
+        (p.img ? `<img src="${p.img}" alt="${esc(p.text.slice(0, 80))}">` : `<div class="text">${esc(p.text)}</div>`) + `</div>`);
+    }
+  }
+  document.getElementById("mbody").innerHTML = body.join("");
+  document.getElementById("modal").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+function closeModal() {
+  document.getElementById("modal").hidden = true;
+  document.getElementById("mbody").innerHTML = "";
+  document.body.style.overflow = "";
+}
+document.getElementById("rows").addEventListener("click", e => {
+  const b = e.target.closest("button.img");
+  if (b) openModal(b.dataset.k, Number(b.dataset.i));
+});
+document.getElementById("mclose").addEventListener("click", closeModal);
+document.getElementById("modal").addEventListener("click", e => { if (e.target.id === "modal") closeModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+load().then(render).catch(e => {
+  console.error(e);
+  document.getElementById("rows").innerHTML = '<tr><td colspan="8" class="t">기록을 불러오지 못했습니다.</td></tr>';
+});
+</script>
+<!-- 방문 통계 (GoatCounter) -->
+<script data-goatcounter="https://xcount.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
