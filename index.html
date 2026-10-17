@@ -21,7 +21,7 @@
   .card .v { font-size:22px; font-weight:700; text-align:right; }   /* 숫자는 오른쪽 정렬 */
   .controls { display:flex; gap:32px; flex-wrap:wrap; margin:12px 4px 4px; font-size:14px; }
   .controls label { margin-right:14px; cursor:pointer; }
-  #graph { height:calc(100vh - 200px); min-height:720px; background:#fff; }
+  #graph { height:calc(100vh - 232px - var(--notice-h, 0px)); min-height:720px; background:#fff; }   /* 공지 높이만큼 더 뺀다 */
   footer { font-size:12px; color:var(--sub); margin:8px 4px; }
   nav.tabs { display:flex; gap:6px; margin:0 4px 10px; }
   nav.tabs a { padding:4px 14px; border:1px solid var(--line); border-radius:999px; background:#fff;
@@ -44,7 +44,7 @@
     .card .v { font-size:13px; white-space:nowrap; letter-spacing:-0.3px; }
     .controls { gap:4px 16px; margin:8px 2px 2px; font-size:12px; }
     .controls label { margin-right:8px; white-space:nowrap; }
-    #graph { height:calc(100vh - 260px); min-height:560px; }
+    #graph { height:calc(100vh - 260px - var(--notice-h, 0px)); min-height:560px; }
     footer { font-size:11px; }
     nav.tabs { margin:0 2px 6px; }
     nav.tabs a { font-size:12px; padding:3px 12px; }
@@ -73,7 +73,7 @@
   </div>
 </div>
 <div id="graph"></div>
-<footer>마우스 휠 = 확대/축소, 드래그 = 좌우 이동, 더블클릭 = 전체 보기 · 팔로워 그래프의 빨간 배경 = 팔로잉이 바뀌었거나, 팔로워가 줄었거나, 새 게시물이 있는 구간</footer>
+<footer>마우스 휠 = 확대/축소, 드래그 = 좌우 이동, 더블클릭 = 전체 보기 · 팔로워·팔로잉 그래프의 빨간 배경 = 팔로잉이 바뀌었거나, 팔로워가 줄었거나, 새 게시물이 있는 구간</footer>
 
 <script>
 // ---------------------------------------------------------------- 설정
@@ -300,8 +300,9 @@ function buildFigure(rows) {
   // y 축: 보이는 구간에 맞춘다
   const pts = key => rows.map(r => ({ t: r.t, v: r[key] }));
   layout.yaxis.range = yRange(visible(pts("followers"), xr).map(p => p.v));
-  if (drops.length) {                           // 팔로워 그래프 배경을 빨갛게 (선보다 아래에 그림)
-    const [lo, hi] = layout.yaxis.range, bx = [], by = [];
+  layout.yaxis2.range = yRange(visible(pts("following"), xr).map(p => p.v));
+  if (drops.length) {                           // 팔로워·팔로잉 그래프 배경을 빨갛게 (선보다 아래에 그림)
+    const bx = [];
     const gapMs = gaps.map(g => [toMs(g[0]), toMs(g[1])]);
     const pieces = [];                          // 수집 중단 구간은 빼고 칠한다 (그 사이는 데이터가 없으므로)
     for (const [a0, b0] of drops) {
@@ -313,14 +314,17 @@ function buildFigure(rows) {
     let cur = null;
     for (const [a, b] of pieces) {
       if (cur && a <= cur[1]) { cur[1] = b; continue; }   // 이어진 구간은 하나로
-      if (cur) { bx.push(toStr(cur[0]), toStr(cur[0]), toStr(cur[1]), toStr(cur[1]), null); by.push(lo, hi, hi, lo, null); }
+      if (cur) bx.push(toStr(cur[0]), toStr(cur[0]), toStr(cur[1]), toStr(cur[1]), null);
       cur = [a, b];
     }
-    if (cur) { bx.push(toStr(cur[0]), toStr(cur[0]), toStr(cur[1]), toStr(cur[1]), null); by.push(lo, hi, hi, lo, null); }
-    if (bx.length) data.unshift({ x: bx, y: by, mode: "lines", fill: "toself", fillcolor: "rgba(244,33,46,0.15)", line: { width: 0 },
-                   hoverinfo: "skip", showlegend: false, xaxis: "x", yaxis: "y" });
+    if (cur) bx.push(toStr(cur[0]), toStr(cur[0]), toStr(cur[1]), toStr(cur[1]), null);
+    if (bx.length) for (const ax of ["", "2"]) {
+      const [lo, hi] = layout["yaxis" + ax].range;
+      const by = bx.map((x, i) => x === null ? null : (i % 5 === 1 || i % 5 === 2 ? hi : lo));
+      data.unshift({ x: bx, y: by, mode: "lines", fill: "toself", fillcolor: "rgba(244,33,46,0.15)", line: { width: 0 },
+                     hoverinfo: "skip", showlegend: false, xaxis: "x" + ax, yaxis: "y" + ax });
+    }
   }
-  layout.yaxis2.range = yRange(visible(pts("following"), xr).map(p => p.v));
   if (d.length) Object.assign(layout.yaxis3, { range: yRange(visible(d, xr).map(p => p.v), true), zeroline: true, zerolinecolor: GRAY });
   if (posts.length) layout.yaxis4.range = yRange(visible(posts, xr).map(p => p.v), true);
   return { data, layout };
@@ -381,12 +385,15 @@ function renderNotices() {
     ...(notices.notices || []).map(n => ({ key: n.date, html: `<span class="d">${esc(n.date)}</span>${esc(n.text)}` })),
     ...(notices.gaps || []).map(g => ({ key: g[0], html: `<span class="d">${g[0].slice(0, 10)}</span>수집 중단: ${gapText(g)} 사정이 생겨서 데이터 수집을 잠시 정지하였습니다.` })),
   ].sort((a, b) => b.key.localeCompare(a.key));
-  if (!items.length) { el.hidden = true; return; }
+  const setNoticeH = () => document.documentElement.style.setProperty("--notice-h",
+    el.hidden ? "0px" : (el.offsetHeight + parseFloat(getComputedStyle(el).marginBottom)) + "px");   // 그래프 높이 계산용
+  if (!items.length) { el.hidden = true; setNoticeH(); return; }
   const SHOW = 3, list = noticeOpen ? items : items.slice(0, SHOW);
   let more = "";
   if (items.length > SHOW) more = `<span class="more">${noticeOpen ? "접기" : `이전 공지 ${items.length - SHOW}개 더 보기`}</span>`;
   el.innerHTML = `<b>공지</b><ul>${list.map(i => `<li>${i.html}</li>`).join("")}</ul>${more}`;
   el.hidden = false;
+  setNoticeH();
   const btn = el.querySelector(".more");
   if (btn) btn.onclick = () => { noticeOpen = !noticeOpen; renderNotices(); };
 }
