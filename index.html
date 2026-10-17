@@ -33,6 +33,14 @@
   #notice .d { color:var(--sub); margin-right:6px; }
   #notice .more { color:var(--blue); cursor:pointer; font-size:12px; }
 
+  /* 넓은 화면: 카드 12개를 한 줄에 (그래프가 한 화면에 들어오도록 위쪽 높이를 줄임) */
+  @media (min-width: 1400px) {
+    #summary { flex-wrap:nowrap; gap:8px; }
+    .card { flex:1 1 0; min-width:0; padding:6px 10px; }
+    .card .t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .card .v { font-size:clamp(17px, 1.35vw, 22px); white-space:nowrap; }
+  }
+
   /* 휴대폰 화면: 카드를 작게, 한 줄에 4개씩 */
   @media (max-width: 700px) {
     body { padding:8px; }
@@ -392,6 +400,16 @@ function renderNotices() {
 }
 
 // ---------------------------------------------------------------- 화면 갱신
+function fitGraph() {                           // 그래프가 화면 한 장에 들어오도록 남은 높이에 맞춘다
+  const g = document.getElementById("graph"), foot = document.querySelector("footer");
+  const top = g.getBoundingClientRect().top + window.scrollY;
+  const fs = getComputedStyle(foot), bs = getComputedStyle(document.body);
+  const below = foot.offsetHeight + parseFloat(fs.marginTop) + parseFloat(fs.marginBottom) + parseFloat(bs.paddingBottom);
+  const min = window.innerWidth < 700 ? 460 : 420;   // 너무 낮으면 읽기 어려우므로 최소 높이는 둔다
+  g.style.minHeight = "0";
+  g.style.height = Math.max(min, Math.floor(window.innerHeight - top - below)) + "px";
+}
+
 async function render() {
   if (!index) return;
   // 전체 보기나 불러온 범위보다 앞을 보려면 지난 달 파일도 받는다
@@ -400,6 +418,7 @@ async function render() {
   if (needAll && !allLoaded()) { await loadMonths(index.months, false); rows = allRows(); }
   renderSummary(rows);
   renderNotices();
+  fitGraph();
   const { data, layout } = buildFigure(rows);
   rendering = true;
   try { await Plotly.react("graph", data, layout, { scrollZoom: true, displaylogo: false, responsive: true, displayModeBar: window.innerWidth >= 700 }); }
