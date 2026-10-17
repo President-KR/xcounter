@@ -206,8 +206,8 @@ function hoverPoints(points, template, name, axis) {   // 막대 위치에 보�
 }
 
 // ---------------------------------------------------------------- 그래프
-// 높이 비율: 팔로워 4, 팔로잉 4, 팔로잉 증감 2, 새 게시물 2, 아래 전체 구간 막대 1 (차트 사이 제목 칸은 TITLE_GAP)
-const RATIO = [4, 4, 2, 2], SLIDER = 1, TITLE_GAP = 0.6;
+// 높이 비율: 팔로워 8, 팔로잉 8, 팔로잉 증감 3, 새 게시물 3, 아래 전체 구간 막대 1 (차트 사이 제목 칸은 TITLE_GAP)
+const RATIO = [8, 8, 3, 3], SLIDER = 1, TITLE_GAP = 1;
 const UNITS = RATIO.reduce((a, b) => a + b) + TITLE_GAP * (RATIO.length - 1);
 const DOMAINS = (() => {
   const out = [];
