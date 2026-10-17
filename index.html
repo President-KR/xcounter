@@ -206,7 +206,15 @@ function hoverPoints(points, template, name, axis) {   // 막대 위치에 보�
 }
 
 // ---------------------------------------------------------------- 그래프
-const DOMAINS = [[0.745, 1], [0.542, 0.695], [0.271, 0.492], [0, 0.221]];
+// 높이 비율: 팔로워 4, 팔로잉 4, 팔로잉 증감 2, 새 게시물 2, 아래 전체 구간 막대 1 (차트 사이 제목 칸은 TITLE_GAP)
+const RATIO = [4, 4, 2, 2], SLIDER = 1, TITLE_GAP = 0.6;
+const UNITS = RATIO.reduce((a, b) => a + b) + TITLE_GAP * (RATIO.length - 1);
+const DOMAINS = (() => {
+  const out = [];
+  let top = UNITS;
+  for (const r of RATIO) { out.push([Math.max(0, (top - r) / UNITS), top / UNITS]); top -= r + TITLE_GAP; }
+  return out;
+})();
 
 function buildFigure(rows) {
   const small = window.innerWidth < 700;        // 휴대폰 화면
@@ -285,7 +293,7 @@ function buildFigure(rows) {
     font: { size: small ? 9 : 11, color: GRAY }, bgcolor: "rgba(255,255,255,0.7)" });
 
   // x 축: 구간은 항상 여기서 지정한 값을 따르게 한다
-  Object.assign(layout.xaxis4, { uirevision: String(Date.now()), rangeslider: { visible: true, thickness: 0.07 } });
+  Object.assign(layout.xaxis4, { uirevision: String(Date.now()), rangeslider: { visible: true, thickness: SLIDER / UNITS } });
   if (xr) Object.assign(layout.xaxis4, { range: [toStr(xr[0]), toStr(xr[1])], autorange: false });
   else layout.xaxis4.autorange = true;
 
