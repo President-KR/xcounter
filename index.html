@@ -292,14 +292,22 @@ function buildFigure(rows) {
   layout.yaxis.range = yRange(visible(pts("followers"), xr).map(p => p.v));
   if (drops.length) {                           // 팔로워 그래프 배경을 빨갛게 (선보다 아래에 그림)
     const [lo, hi] = layout.yaxis.range, bx = [], by = [];
+    const gapMs = gaps.map(g => [toMs(g[0]), toMs(g[1])]);
+    const pieces = [];                          // 수집 중단 구간은 빼고 칠한다 (그 사이는 데이터가 없으므로)
+    for (const [a0, b0] of drops) {
+      let segs = [[a0, b0]];
+      for (const [ga, gb] of gapMs)
+        segs = segs.flatMap(([a, b]) => (gb <= a || ga >= b) ? [[a, b]] : [[a, Math.min(b, ga)], [Math.max(a, gb), b]].filter(([x, y]) => y > x));
+      pieces.push(...segs);
+    }
     let cur = null;
-    for (const [a, b] of drops) {
+    for (const [a, b] of pieces) {
       if (cur && a <= cur[1]) { cur[1] = b; continue; }   // 이어진 구간은 하나로
       if (cur) { bx.push(toStr(cur[0]), toStr(cur[0]), toStr(cur[1]), toStr(cur[1]), null); by.push(lo, hi, hi, lo, null); }
       cur = [a, b];
     }
-    bx.push(toStr(cur[0]), toStr(cur[0]), toStr(cur[1]), toStr(cur[1]), null); by.push(lo, hi, hi, lo, null);
-    data.unshift({ x: bx, y: by, mode: "lines", fill: "toself", fillcolor: "rgba(244,33,46,0.15)", line: { width: 0 },
+    if (cur) { bx.push(toStr(cur[0]), toStr(cur[0]), toStr(cur[1]), toStr(cur[1]), null); by.push(lo, hi, hi, lo, null); }
+    if (bx.length) data.unshift({ x: bx, y: by, mode: "lines", fill: "toself", fillcolor: "rgba(244,33,46,0.15)", line: { width: 0 },
                    hoverinfo: "skip", showlegend: false, xaxis: "x", yaxis: "y" });
   }
   layout.yaxis2.range = yRange(visible(pts("following"), xr).map(p => p.v));
