@@ -517,7 +517,7 @@ function setupRangeSelect(opts) {
     "background:rgba(29,155,240,0.12);border-left:1px solid rgba(29,155,240,0.7);border-right:1px solid rgba(29,155,240,0.7);";
   const box = document.createElement("div");
   box.style.cssText = "position:absolute;display:none;z-index:50;background:#fff;border:1px solid #cfe3f5;" +
-    "border-radius:10px;padding:4px 8px;font-size:10.5px;line-height:1.4;color:#0f1419;" +
+    "border-radius:10px;padding:5px 12px;font-size:13px;line-height:1.5;color:#0f1419;" +
     "box-shadow:0 1px 4px rgba(0,0,0,0.06);font-variant-numeric:tabular-nums;white-space:nowrap;" +
     "font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;";
   const attachEls = () => document.body ? document.body.append(band, box) : setTimeout(attachEls, 50);
@@ -551,11 +551,13 @@ function setupRangeSelect(opts) {
   const hm = ms => { const m = Math.round(ms / 6e4), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
     return (d ? d + "일 " : "") + (h ? h + "시간 " : "") + (m % 60) + "분"; };
   const tstr = ms => new Date(ms).toISOString().slice(5, 16).replace("T", " ");
-  function statsHtml(a, b) {
+  const dstr = ms => new Date(ms).toISOString().slice(0, 16).replace("T", " ").replace(/-/g, "/");   // 2026/11/12 07:50
+  function statsHtml(a, b) {                     // 왼쪽: 날짜·시간 / 오른쪽: 팔로워·팔로잉·새 게시물
     const { rows, posts } = opts.getData();
     const r = rows.filter(x => x.t >= a && x.t <= b);
-    const close = `<span data-close style="float:right;margin-left:12px;color:${GRAY};cursor:pointer">✕</span>`;
-    if (r.length < 2) return close + `선택 구간: ${tstr(a)} ~ ${tstr(b)}<br><span style="color:${GRAY}">이 구간에는 비교할 기록이 없습니다 (2개 미만)</span>`;
+    const close = `<td data-close rowspan="2" style="vertical-align:top;padding-left:14px;color:${GRAY};cursor:pointer">✕</td>`;
+    if (r.length < 2) return `<table style="border-collapse:collapse;font-size:inherit"><tr><td><b>${dstr(a)} ~ ${dstr(b)}</b></td>${close}</tr>` +
+      `<tr><td style="color:${GRAY}">이 구간에는 비교할 기록이 없습니다 (2개 미만)</td></tr></table>`;
     const f = r[0], l = r[r.length - 1];
     let maxUp = 0, frDown = 0, fgChg = 0, gaps = 0;
     for (let i = 1; i < r.length; i++) {
@@ -566,31 +568,35 @@ function setupRangeSelect(opts) {
       if (r[i].t - r[i - 1].t > GAP_MS) gaps++;
     }
     const np = posts.filter(p => p.t > f.t && p.t <= l.t).reduce((s, p) => s + p.v, 0);
-    const endDay = tstr(l.t).slice(0, 5) === tstr(f.t).slice(0, 5) ? tstr(l.t).slice(6) : tstr(l.t);
-    const td = (h, st = "") => `<td style="padding:0 0 0 5px;${st}">${h}</td>`;
-    const row = (name, color, a0, a1, extra) =>
-      `<tr><td style="color:${color};padding:0">${name}</td>${td(`${fmt(a0)} → ${fmt(a1)}`, "text-align:right")}` +
-      `${td(sgn(a1 - a0), "text-align:right")}${td(extra, `color:${GRAY}`)}</tr>`;
-    return close +
-      `<b>${tstr(f.t)} ~ ${endDay}</b> <span style="color:${GRAY}">${hm(l.t - f.t)} · ${fmt(r.length)}회${gaps ? ` · 중단 ${gaps}번` : ""}</span>` +
-      `<table style="border-collapse:collapse;font-size:inherit">` +
-      row("팔로워", BLUE, f.followers, l.followers, `최대+${fmt(maxUp)} 감소${frDown}회`) +
-      row("팔로잉", RED, f.following, l.following, `변동 ${fgChg}회`) +
-      `<tr><td style="color:${GREEN};padding:0">새 게시물</td>${td(`<b>${fmt(np)}</b>개`, "text-align:right")}<td></td><td></td></tr></table>`;
+    const c = (h, st = "") => `<td style="padding:0 0 0 8px;${st}">${h}</td>`;
+    const sep = `<td style="width:22px"></td>`;                  // 날짜 칸과 숫자 칸 사이
+    const vals = (name, color, a0, a1, extra) =>
+      `<td style="color:${color};padding:0">${name}</td>` + c(`${fmt(a0)} → ${fmt(a1)}`, "text-align:right") +
+      c(sgn(a1 - a0), "text-align:right") + c(extra, `color:${GRAY}`);
+    return `<table style="border-collapse:collapse;font-size:inherit">` +
+      `<tr><td style="padding:0"><b>${dstr(f.t)} ~ ${dstr(l.t)}</b></td>${sep}` +
+      vals("팔로워", BLUE, f.followers, l.followers, `(최대 +${fmt(maxUp)} · 감소 ${frDown}회)`) +
+      c(`<span style="color:${GREEN}">새 게시물</span> <b>${fmt(np)}</b>개`, "padding-left:22px") + close + `</tr>` +
+      `<tr><td style="padding:0;color:${GRAY}">${hm(l.t - f.t)}, ${fmt(r.length)}회 데이터, ${gaps}회 중단</td>${sep}` +
+      vals("팔로잉", RED, f.following, l.following, `(변동 ${fgChg}회)`) + `<td></td></tr></table>`;
   }
-  function placeBox() {                          // 카드 마지막 줄 오른쪽 빈 곳에 (자리가 없으면 그래프 안 오른쪽 위)
+  function placeBox() {      // ① 카드 마지막 줄 오른쪽 빈 곳 ② 기간·증감 단위 줄 오른쪽 ③ 그래프 안 오른쪽 위
     if (box.style.display === "none") return;
     const anc = opts.anchor(), g = gd.getBoundingClientRect(), sx = window.scrollX, sy = window.scrollY;
-    const cards = anc ? [...anc.children] : [];
-    let right = 0, rowTop = 0;
-    if (cards.length) { rowTop = cards[cards.length - 1].getBoundingClientRect().top;
-      for (const c of cards) { const rc = c.getBoundingClientRect(); if (Math.abs(rc.top - rowTop) < 4) right = Math.max(right, rc.right); } }
-    const w = box.offsetWidth, room = g.right - right - 8;
-    if (anc && cards.length && room >= w) {
-      Object.assign(box.style, { left: (g.right - w + sx) + "px", top: (rowTop + sy) + "px" });
-    } else {
-      Object.assign(box.style, { left: (g.right - w - 8 + sx) + "px", top: (plotTop() + 4 + sy) + "px" });
-    }
+    const w = box.offsetWidth;
+    const spot = els => {                          // 그 줄에서 내용이 끝나는 곳과 줄의 위쪽
+      let right = 0, top = 0;
+      if (els.length) { top = els[els.length - 1].getBoundingClientRect().top;
+        for (const e of els) { const rc = e.getBoundingClientRect(); if (Math.abs(rc.top - top) < 4) right = Math.max(right, rc.right); } }
+      return { ok: els.length && g.right - right - 16 >= w, top };
+    };
+    const a = spot(anc ? [...anc.children] : []);
+    const ctl = anc && anc.nextElementSibling, b = spot(ctl ? [...ctl.children] : []);
+    let top;
+    if (a.ok) top = a.top;
+    else if (b.ok) top = b.top - 4;
+    else top = plotTop() + 4;
+    Object.assign(box.style, { left: (g.right - w - (a.ok || b.ok ? 0 : 8) + sx) + "px", top: (top + sy) + "px" });
   }
   function showStats() {
     if (!sel) { box.style.display = "none"; return; }
