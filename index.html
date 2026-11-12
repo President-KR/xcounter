@@ -499,6 +499,167 @@ document.querySelectorAll("input[name=period], input[name=bucket]").forEach(el =
   window.addEventListener("graph-rendered", replace);         // 카드가 그려진 뒤 위치가 바뀌면 다시 맞춤
   window.addEventListener("pageshow", () => { line.style.display = "none"; lastX = null; });
 })();
+
+// ---------------------------------------------------------------- 구간 선택 (PC 전용)
+// 왼쪽 버튼 드래그 = 구간 선택 → 그 구간의 팔로워·팔로잉 변동을 카드 옆(그래프 위 오른쪽)에 표시
+// 휠 버튼 드래그 = 그래프 좌우 이동, 휠 = 확대/축소, 더블클릭 = 전체 보기
+function setupRangeSelect(opts) {
+  // opts.getGd()   : plotly 그래프 div
+  // opts.getData() : { rows: [{t, followers, following}] (시간순), posts: [{t, v}] }
+  // opts.anchor()  : 카드 묶음(#summary) - 결과 상자를 그 오른쪽 빈 곳에 놓음
+  // opts.onReset() : 더블클릭 시 전체 보기
+  if (!window.matchMedia("(pointer: fine)").matches) return;   // 휴대폰·태블릿은 지금 방식 그대로
+  const GAP_MS = 20 * 60e3;                                       // 수집 간격이 이보다 길면 '수집 중단'
+  const BLUE = "#1d9bf0", RED = "#f4212e", GRAY = "#536471", GREEN = "#00ba7c";
+
+  const band = document.createElement("div");
+  band.style.cssText = "position:fixed;display:none;pointer-events:none;z-index:9998;" +
+    "background:rgba(29,155,240,0.12);border-left:1px solid rgba(29,155,240,0.7);border-right:1px solid rgba(29,155,240,0.7);";
+  const box = document.createElement("div");
+  box.style.cssText = "position:absolute;display:none;z-index:50;background:#fff;border:1px solid #cfe3f5;" +
+    "border-radius:10px;padding:4px 8px;font-size:10.5px;line-height:1.4;color:#0f1419;" +
+    "box-shadow:0 1px 4px rgba(0,0,0,0.06);font-variant-numeric:tabular-nums;white-space:nowrap;" +
+    "font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif;";
+  const attachEls = () => document.body ? document.body.append(band, box) : setTimeout(attachEls, 50);
+  attachEls();
+
+  let gd = null, sel = null, drag = null;
+  const inPlot = t => t.classList && (t.classList.contains("nsewdrag") || t.classList.contains("ewdrag"));   // 차트 안쪽 + 차트 사이 가로축 띠
+  const fl = () => gd && gd._fullLayout;
+  const xa = () => fl() && fl().xaxis;
+  const plotTop = () => gd.getBoundingClientRect().top + fl().yaxis._offset;
+  const plotBottom = () => { const y = fl().yaxis4 || fl().yaxis; return gd.getBoundingClientRect().top + y._offset + y._length; };
+  const plotLeft = () => gd.getBoundingClientRect().left + xa()._offset;
+  const clampX = x => Math.min(Math.max(x, plotLeft()), plotLeft() + xa()._length);
+  const msAt = x => xa().p2c(clampX(x) - plotLeft());
+  const xAt = ms => plotLeft() + xa().c2p(ms);
+
+  function drawBand(x0, x1) {
+    const a = clampX(Math.min(x0, x1)), b = clampX(Math.max(x0, x1));
+    const top = Math.max(plotTop(), 0), bottom = Math.min(plotBottom(), window.innerHeight);
+    if (b - a < 1 || bottom <= top) { band.style.display = "none"; return; }
+    Object.assign(band.style, { left: a + "px", width: (b - a) + "px", top: top + "px", height: (bottom - top) + "px", display: "block" });
+  }
+  function redraw() {                            // 이동·확대 뒤에도 선택 구간을 따라가게
+    if (!gd || !xa() || drag) return;
+    if (sel) drawBand(xAt(sel[0]), xAt(sel[1])); else band.style.display = "none";
+  }
+
+  // ---- 통계
+  const fmt = v => v.toLocaleString("en-US");
+  const sgn = v => `<b style="color:${v > 0 ? BLUE : v < 0 ? RED : GRAY}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${fmt(Math.abs(v))}</b>`;
+  const hm = ms => { const m = Math.round(ms / 6e4), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
+    return (d ? d + "일 " : "") + (h ? h + "시간 " : "") + (m % 60) + "분"; };
+  const tstr = ms => new Date(ms).toISOString().slice(5, 16).replace("T", " ");
+  function statsHtml(a, b) {
+    const { rows, posts } = opts.getData();
+    const r = rows.filter(x => x.t >= a && x.t <= b);
+    const close = `<span data-close style="float:right;margin-left:12px;color:${GRAY};cursor:pointer">✕</span>`;
+    if (r.length < 2) return close + `선택 구간: ${tstr(a)} ~ ${tstr(b)}<br><span style="color:${GRAY}">이 구간에는 비교할 기록이 없습니다 (2개 미만)</span>`;
+    const f = r[0], l = r[r.length - 1];
+    let maxUp = 0, frDown = 0, fgChg = 0, gaps = 0;
+    for (let i = 1; i < r.length; i++) {
+      const df = r[i].followers - r[i - 1].followers;
+      if (df > maxUp) maxUp = df;
+      if (df < 0) frDown++;
+      if (r[i].following !== r[i - 1].following) fgChg++;
+      if (r[i].t - r[i - 1].t > GAP_MS) gaps++;
+    }
+    const np = posts.filter(p => p.t > f.t && p.t <= l.t).reduce((s, p) => s + p.v, 0);
+    const endDay = tstr(l.t).slice(0, 5) === tstr(f.t).slice(0, 5) ? tstr(l.t).slice(6) : tstr(l.t);
+    const td = (h, st = "") => `<td style="padding:0 0 0 5px;${st}">${h}</td>`;
+    const row = (name, color, a0, a1, extra) =>
+      `<tr><td style="color:${color};padding:0">${name}</td>${td(`${fmt(a0)} → ${fmt(a1)}`, "text-align:right")}` +
+      `${td(sgn(a1 - a0), "text-align:right")}${td(extra, `color:${GRAY}`)}</tr>`;
+    return close +
+      `<b>${tstr(f.t)} ~ ${endDay}</b> <span style="color:${GRAY}">${hm(l.t - f.t)} · ${fmt(r.length)}회${gaps ? ` · 중단 ${gaps}번` : ""}</span>` +
+      `<table style="border-collapse:collapse;font-size:inherit">` +
+      row("팔로워", BLUE, f.followers, l.followers, `최대+${fmt(maxUp)} 감소${frDown}회`) +
+      row("팔로잉", RED, f.following, l.following, `변동 ${fgChg}회`) +
+      `<tr><td style="color:${GREEN};padding:0">새 게시물</td>${td(`<b>${fmt(np)}</b>개`, "text-align:right")}<td></td><td></td></tr></table>`;
+  }
+  function placeBox() {                          // 카드 마지막 줄 오른쪽 빈 곳에 (자리가 없으면 그래프 안 오른쪽 위)
+    if (box.style.display === "none") return;
+    const anc = opts.anchor(), g = gd.getBoundingClientRect(), sx = window.scrollX, sy = window.scrollY;
+    const cards = anc ? [...anc.children] : [];
+    let right = 0, rowTop = 0;
+    if (cards.length) { rowTop = cards[cards.length - 1].getBoundingClientRect().top;
+      for (const c of cards) { const rc = c.getBoundingClientRect(); if (Math.abs(rc.top - rowTop) < 4) right = Math.max(right, rc.right); } }
+    const w = box.offsetWidth, room = g.right - right - 8;
+    if (anc && cards.length && room >= w) {
+      Object.assign(box.style, { left: (g.right - w + sx) + "px", top: (rowTop + sy) + "px" });
+    } else {
+      Object.assign(box.style, { left: (g.right - w - 8 + sx) + "px", top: (plotTop() + 4 + sy) + "px" });
+    }
+  }
+  function showStats() {
+    if (!sel) { box.style.display = "none"; return; }
+    box.innerHTML = statsHtml(sel[0], sel[1]);
+    box.style.display = "block";
+    placeBox();
+  }
+  function clear() { sel = null; band.style.display = "none"; box.style.display = "none"; }
+  box.addEventListener("click", e => { if (e.target.closest("[data-close]")) clear(); });
+
+  // ---- 마우스
+  function onDown(e) {
+    if (!e.isTrusted || !xa()) return;                       // 아래에서 넘겨주는 가짜 이벤트는 그대로 통과
+    const t = e.target;
+    if (!inPlot(t)) return;                                    // 차트 안쪽만 (아래 범위 막대·세로축은 그대로)
+    if (e.button === 1) {                                      // 휠 버튼 → 기존 '이동' 동작으로 넘김
+      e.preventDefault(); e.stopPropagation();
+      t.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window,
+        clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY, button: 0, buttons: 1 }));
+      return;
+    }
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();                   // 왼쪽 버튼 → 구간 선택
+    drag = { x0: e.clientX };
+    drawBand(e.clientX, e.clientX);
+  }
+  document.addEventListener("mousemove", e => { if (drag) drawBand(drag.x0, e.clientX); });
+  document.addEventListener("mouseup", e => {
+    if (!drag || e.button !== 0) return;
+    const x0 = drag.x0; drag = null;
+    if (Math.abs(e.clientX - x0) < 4) { clear(); return; }   // 그냥 클릭 = 선택 해제
+    const a = msAt(x0), b = msAt(e.clientX);
+    sel = [Math.min(a, b), Math.max(a, b)];
+    redraw(); showStats();
+  });
+  function onDbl(e) {
+    if (!inPlot(e.target)) return;
+    e.preventDefault(); e.stopPropagation();
+    clear(); opts.onReset();
+  }
+  window.addEventListener("scroll", redraw, { passive: true });
+  window.addEventListener("resize", () => { redraw(); placeBox(); });
+
+  (function attach() {                            // 그래프가 그려지면 한 번만 연결
+    const g = opts.getGd();
+    if (g && g._fullLayout && g.on && !g._rangeSelect) {
+      gd = g; g._rangeSelect = true;
+      g.addEventListener("mousedown", onDown, true);
+      g.addEventListener("dblclick", onDbl, true);
+      g.on("plotly_relayouting", redraw);
+      g.on("plotly_afterplot", () => { redraw(); if (sel) showStats(); });
+    }
+    setTimeout(attach, 1000);
+  })();
+}
+
+setupRangeSelect({
+  getGd: () => document.getElementById("graph"),
+  getData: () => {
+    const rows = allRows();
+    return { rows, posts: rows.filter(r => r.new_posts > 0).map(r => ({ t: r.t, v: r.new_posts })) };
+  },
+  anchor: () => document.getElementById("summary"),
+  onReset: () => { state.period = "all"; state.custom = null; syncRadios(); render(); },
+});
+if (window.matchMedia("(pointer: fine)").matches) {   // PC: 안내 문구도 바뀐 조작에 맞춤
+  const f = document.querySelector("footer");
+  f.textContent = f.textContent.replace("드래그 = 좌우 이동", "드래그 = 구간 선택, 휠 버튼 드래그 = 좌우 이동");
+}
 </script>
 <!-- 방문 통계 (GoatCounter) -->
 <script data-goatcounter="https://xcount.goatcounter.com/count"
