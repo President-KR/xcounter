@@ -577,7 +577,7 @@ function setupRangeSelect(opts) {
       `<tr><td style="padding:0"><b>${dstr(f.t)} ~ ${dstr(l.t)}</b></td>${sep}` +
       vals("팔로워", BLUE, f.followers, l.followers, `(최대 +${fmt(maxUp)} · 감소 ${frDown}회)`) +
       c(`<span style="color:${GREEN}">새 게시물</span> <b>${fmt(np)}</b>개`, "padding-left:22px") + close + `</tr>` +
-      `<tr><td style="padding:0;color:${GRAY}">${hm(l.t - f.t)}, ${fmt(r.length)}회 데이터, ${gaps}회 중단</td>${sep}` +
+      `<tr><td style="padding:0;color:${GRAY}">${hm(l.t - f.t)}, ${fmt(r.length)}회 데이터 수집${gaps ? `, ${gaps}회 중단` : ""}</td>${sep}` +
       vals("팔로잉", RED, f.following, l.following, `(변동 ${fgChg}회)`) + `<td></td></tr></table>`;
   }
   function placeBox() {      // ① 카드 마지막 줄 오른쪽 빈 곳 ② 기간·증감 단위 줄 오른쪽 ③ 그래프 안 오른쪽 위
