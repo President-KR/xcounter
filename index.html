@@ -55,7 +55,7 @@
 </head>
 <body>
 <h1 id="title">xCounter<span id="sub"></span></h1>
-<nav class="tabs"><a class="on" href="./">그래프</a><a href="list.html">기록</a></nav>
+<nav class="tabs"><a class="on" href="./">그래프</a><a href="list.html">기록</a><a href="notice.html">공지사항</a></nav>
 <div id="notice" hidden></div>
 <div id="summary"></div>
 <div class="controls">
@@ -412,7 +412,6 @@ async function render() {
   const needAll = state.period === "all" || (state.period === "custom" && state.custom && rows.length && state.custom[0] < rows[0].t);
   if (needAll && !allLoaded()) { await loadMonths(index.months, false); rows = allRows(); }
   renderSummary(rows);
-  renderNotices();
   const { data, layout } = buildFigure(rows);
   rendering = true;
   try { await Plotly.react("graph", data, layout, { scrollZoom: true, displaylogo: false, responsive: true, displayModeBar: window.innerWidth >= 700 }); }

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xCounter 공지사항</title>
+<style>
+  :root { --text:#0f1419; --sub:#536471; --line:#e1e8ed; --bg:#f7f9f9; --blue:#1d9bf0; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:12px 16px; background:var(--bg); color:var(--text);
+         font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI',sans-serif; }
+  h1 { font-size:18px; margin:2px 4px 10px; }
+  h1 span { font-weight:400; color:var(--sub); font-size:13px; margin-left:8px; }
+  nav.tabs { display:flex; gap:6px; margin:0 4px 10px; }
+  nav.tabs a { padding:4px 14px; border:1px solid var(--line); border-radius:999px; background:#fff;
+               color:var(--text); text-decoration:none; font-size:13px; }
+  nav.tabs a.on { background:var(--text); color:#fff; border-color:var(--text); }
+  #list { background:#fff; border:1px solid var(--line); border-radius:10px; }
+  .item { display:flex; gap:14px; padding:10px 14px; border-bottom:1px solid #eef1f4; font-size:14px; line-height:1.5; }
+  .item:last-child { border-bottom:0; }
+  .item .d { color:var(--sub); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .item .k { display:inline-block; font-size:11px; padding:0 7px; margin-right:6px; border-radius:999px;
+             background:#f2f5f7; color:var(--sub); border:1px solid var(--line); }
+  .empty { padding:14px; color:var(--sub); font-size:14px; }
+  @media (max-width: 700px) {
+    body { padding:8px; }
+    h1 { font-size:15px; margin:0 2px 6px; }
+    h1 span { display:block; margin:2px 0 0; font-size:11px; }
+    nav.tabs { margin:0 2px 6px; }
+    nav.tabs a { font-size:12px; padding:3px 12px; }
+    .item { flex-direction:column; gap:2px; padding:8px 10px; font-size:13px; }
+  }
+</style>
+</head>
+<body>
+<h1 id="title">xCounter<span id="sub"></span></h1>
+<nav class="tabs"><a href="./">그래프</a><a href="list.html">기록</a><a class="on" href="notice.html">공지사항</a></nav>
+<div id="list"><div class="empty">불러오는 중…</div></div>
+
+<script>
+// 수집 중단 사유 (중단 시작 시각 "YYYY-MM-DD HH:MM" 별로 따로 적을 수 있음)
+const GAP_REASON = {
+  "2026-10-15 08:26": "서버 이전으로 데이터 수집을 잠시 정지하였습니다",
+  default: "사정이 생겨서 데이터 수집을 잠시 정지하였습니다",
+};
+
+const toMs = s => Date.parse(String(s).trim().replace(" ", "T") + "Z");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+async function fetchJSON(url, fallback) {
+  try {
+    const res = await fetch(`${url}?t=${Date.now()}`, { cache: "no-store" });
+    return res.ok ? await res.json() : fallback;
+  } catch (e) { return fallback; }
+}
+
+function gapText(g) {                           // "10-15 08:26 ~ 15:18 (6시간 52분)"
+  const min = Math.round((toMs(g[1]) - toMs(g[0])) / 6e4), h = Math.floor(min / 60), m = min % 60;
+  const end = g[1].slice(0, 10) === g[0].slice(0, 10) ? g[1].slice(11, 16) : g[1].slice(5, 16);
+  return `${g[0].slice(5, 16)} ~ ${end} (${h ? h + "시간 " : ""}${m}분)`;
+}
+
+(async () => {
+  const [index, notices] = await Promise.all([
+    fetchJSON("data/index.json", null),
+    fetchJSON("data/notices.json", { notices: [], gaps: [] }),
+  ]);
+  if (index) {
+    document.title = `@${index.username} 공지사항`;
+    document.getElementById("title").firstChild.textContent = `X@${index.username}의 팔로워·팔로잉의 변화를 알아보자`;
+    document.getElementById("sub").textContent = `최근 업데이트 ${index.updated}`;
+  }
+  const items = [
+    ...(notices.notices || []).map(n => ({ key: n.date, date: n.date, html: esc(n.text) })),
+    ...(notices.gaps || []).map(g => ({ key: g[0], date: g[0].slice(0, 10),
+      html: `<span class="k">수집 중단</span>${gapText(g)} ${GAP_REASON[g[0].slice(0, 16)] || GAP_REASON.default}` })),
+  ].sort((a, b) => b.key.localeCompare(a.key));   // 최신순
+  document.getElementById("list").innerHTML = items.length
+    ? items.map(i => `<div class="item"><span class="d">${esc(i.date)}</span><span>${i.html}</span></div>`).join("")
+    : '<div class="empty">공지사항이 없습니다.</div>';
+})();
+</script>
+<!-- 방문 통계 (GoatCounter) -->
+<script data-goatcounter="https://xcount.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>
